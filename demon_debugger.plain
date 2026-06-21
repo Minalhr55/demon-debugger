@@ -1,0 +1,108 @@
+---
+description: 'Demon Debugger - a dark-fantasy debugging RPG where programming bugs are demons. The player chooses a weapon (programming language), then fights demons in a side-view arena: each demon presents cursed code, the player runs a simulation that fails, chooses the patch that fixes the bug, and a demon-slayer hero lunges to strike. Correct answers exorcise the demon with a crumble animation; wrong answers make the hero recoil and cost a heart. Includes AI-generated demon summoning via a serverless Gemini proxy, with a static fallback so the game always works.'
+import:
+  - typescript-react-app-template
+requires:
+  - typescript-react-app-boilerplate
+---
+
+***definitions***
+
+- :Language: is the programming language flavor chosen on the start screen, one of "javascript", "python", "java", "c". It determines which demons appear and is themed as a weapon.
+
+- :Weapon: is the dark-fantasy presentation of a :Language: on the start screen. Each :Weapon: has a language (a :Language:), a weaponName (an epic name, e.g. "Aetherquill"), a weaponType (a subtitle, e.g. "Blade of the Living Script"), and a flavor (one evocative sentence). The four weapons are: Aetherquill / Blade of the Living Script (javascript), Serpent's Embrace / Catalyst of the Coiled Tongue (python), Verdant Greatsword / The Heavy Brew (java), and Nullspike / Polearm of the Bare Metal (c).
+
+- :Demon: is an enemy representing one programming bug. Each :Demon: has: id (string), name (string), title (an epic subtitle), bugCategory (string), difficulty ("easy" | "medium" | "hard"), language (a :Language:), spriteId (a PNG filename in the public sprites folder), codeSnippet (a short code block containing exactly one bug, newlines as \n), buggyLineIndex (number), options (an array of 3 objects each with id and text, exactly one being the correct patch), correctOptionId (string), terminalAnswer (string), simulationFailOutput (a short fake console output shown when the cursed code is run), simulationPassOutput (a short fake console output shown once patched), explanation (1-2 plain sentences), lore (one epic-fantasy sentence about the bug), and points (10 easy, 20 medium, 30 hard).
+
+- :DemonData: is the existing TypeScript data file named demons.ts in the data folder, containing at least 26 :Demon: objects across all four languages and the :Weapon: list. This file is authored content and must be preserved and used as-is; the application reads demons and weapons from it and must not replace its contents.
+
+- :GameState: is the in-memory session state: language (a :Language:), index (number, which demon in the current roster), hearts (number, starts at 3), score (number, starts at 0), demonsDefeated (number), combo (number, consecutive correct answers), bestCombo (number), lastAnswerCorrect (boolean), and screen ("start" | "battle" | "result" | "final").
+
+- :Hero: is the demon-slayer player character, shown on the left of the battle arena as an image (hero_demon_slayer_right.png) facing right toward the demon.
+
+- :Arena: is the side-view battle stage: a dark dungeon panel with the :Hero: on the left and the current :Demon: on the right, each idly bobbing, with a glowing floor line.
+
+- :CombatAnimation: is the set of battle motions. On a correct answer: the :Hero: lunges rightward across the arena toward the demon, a slash and a white impact burst flash at the demon, the demon shakes and flares red, then crumbles (scales down, spins, fades to black) and a floating point value rises above it; the screen briefly shakes. On a wrong answer: the demon swells menacingly and the :Hero: is knocked backward (recoil), and the screen briefly shakes.
+
+- :Rank: is a final title from score: "Cursed Intern" (low), "Junior Exorcist", "Demon Slayer", "Archmage Debugger" (highest).
+
+- :AiSummon: is a feature that requests a freshly generated :Demon: from a serverless endpoint backed by Google Gemini. The endpoint holds the API key server-side; the browser never sees it. If the endpoint is unavailable, returns an error, or returns malformed data, :AiSummon: silently falls back to a random :Demon: from :DemonData: so the game always continues.
+
+***functional specs***
+
+- :App: manages :GameState: and renders exactly one of four screens by the screen field: the start screen, the battle screen, the result screen, or the final screen. Transitions happen through state only, no URL routing.
+
+- :App: uses a dark-fantasy plus IDE aesthetic: a near-black violet background, an engraved serif display font for titles, a monospace font for all code and console text, an ember-red and soul-purple accent palette with soft glows, and a layout responsive for desktop and mobile.
+
+- The start screen shows the title "Demon Debugger" and the subtitle "Exorcise the bugs that haunt your code". Under the heading "Choose your weapon" it presents the four :Weapon: cards from :DemonData:, each showing its language, weaponName, weaponType, and flavor. The player selects one weapon; an "Enter the Dungeon" button is disabled until a weapon is chosen. Pressing it initializes :GameState: with the chosen language, hearts 3, score 0, combo 0, index 0, and screen "battle".
+
+  ***acceptance tests***
+  - The "Enter the Dungeon" button is disabled until a weapon is selected.
+  - Selecting a weapon stores its language in :GameState:.
+
+- The application reads all demons and weapons from :DemonData:. The current roster is the demons whose language matches the chosen :Language:, in file order. :DemonData: content is preserved exactly and never regenerated.
+
+- The battle screen shows a status bar (three hearts reflecting remaining hearts, the current score, the chosen weaponName, and the combo count when 2 or more), a horizontal dungeon path of nodes representing the roster with a marker on the current demon, and the :Arena: with the :Hero: on the left and the current :Demon: (its spriteId image, name, title, and bugCategory tag) on the right.
+
+  ***acceptance tests***
+  - The status bar shows the current hearts and score.
+  - The arena shows the current demon matching :GameState: index.
+
+- The battle interaction is a simulation. It shows the demon's codeSnippet in a console panel with a "Run the Code" button. Pressing it shows a brief "executing ritual..." line, then the demon's simulationFailOutput. The demon's options then appear as selectable patch choices with an "Apply Patch & Strike" button enabled once a patch is selected.
+
+- When the player applies a patch, :App: compares the selected option id to the current demon's correctOptionId to determine whether the answer is correct, sets lastAnswerCorrect to that result, then resolves the outcome and shows the result screen.
+
+  ***acceptance tests***
+  - Applying the option whose id equals correctOptionId sets lastAnswerCorrect to true.
+  - Applying any other option sets lastAnswerCorrect to false.
+
+- When the applied patch is correct, :App: plays the correct-answer :CombatAnimation:.
+
+- When the applied patch is correct, :App: increments combo by one.
+
+- When the applied patch is correct, :App: adds the current demon's points to score. When combo is 3 or more, it adds an additional bonus equal to half the demon's points.
+
+  ***acceptance tests***
+  - A correct answer increases score by at least the demon's points.
+  - A correct answer does not reduce hearts.
+
+- When the applied patch is correct, :App: also increments demonsDefeated by one and updates bestCombo to the larger of its current value and the current combo.
+
+- When the applied patch is incorrect, :App: plays the wrong-answer :CombatAnimation:.
+
+- When the applied patch is incorrect, :App: subtracts one heart and resets combo to 0.
+
+  ***acceptance tests***
+  - An incorrect answer reduces hearts by one.
+  - An incorrect answer resets combo to 0.
+
+- The result screen displays "Demon Exorcised" with a victory glow when lastAnswerCorrect is true, or "The bug grows stronger" when it is false. It also shows the current demon's lore in an italic highlighted line, its explanation, and the text of the correct fix.
+
+- The result screen has a "Continue" button. Pressing it sends :App: to the final screen when hearts have reached 0 or no demons remain in the roster; otherwise, when lastAnswerCorrect is true it advances to the next demon and shows the battle screen, and when lastAnswerCorrect is false it returns to the same demon and shows the battle screen.
+
+  ***acceptance tests***
+  - When hearts reach 0, Continue goes to the final screen.
+  - After a wrong answer, Continue returns to the same demon.
+  - After a correct answer with demons remaining, Continue shows the next demon.
+
+- :App: includes a helper function playSound that takes an event name, attempts to play the matching audio file from the public sounds folder, and silently does nothing if the file cannot be played.
+
+- The final screen shows the final score, demons exorcised, and best combo, plus a :Rank: derived from score. It has a "Download Scroll of Conquest" button that downloads a JSON file containing the weapon, language, score, demons exorcised, best combo, rank, and an ISO timestamp. A "Descend Again" button resets :GameState: and returns to the start screen.
+
+  ***acceptance tests***
+  - The final screen displays a rank derived from the final score.
+  - The download button produces a JSON file containing the score and timestamp.
+
+- :App: includes a serverless endpoint at /api/summon. The endpoint reads a Gemini API key from a server-side environment variable, and this key is read only on the server and never sent to the browser.
+
+  ***acceptance tests***
+  - The API key is read only on the server and never appears in client code.
+
+- The /api/summon endpoint asks Google Gemini to produce one :Demon: as JSON matching the :Demon: shape, validates that the returned object contains all required :Demon: fields, and responds with the demon on success or an error status when generation or validation fails.
+
+- The start screen has a "Summon a Random Demon" button that triggers :AiSummon:. :AiSummon: requests a demon from /api/summon; on a successful valid response it uses that demon for the next battle, and on any failure, timeout, or invalid response it instead picks a random demon from :DemonData: so the game always continues.
+
+  ***acceptance tests***
+  - If /api/summon fails or returns invalid data, a static demon from :DemonData: is used instead.
+
+- :App: must build into a static production bundle plus the serverless function, suitable for deployment on Vercel. The core game (everything except live AI summoning) must work with no environment variables configured.
