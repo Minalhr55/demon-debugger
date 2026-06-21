@@ -87,7 +87,7 @@ Return ONLY a JSON object (no markdown, no code fences, no commentary) with EXAC
 CRITICAL: the bug must be REAL and the correctOptionId must ACTUALLY fix it. The failure output MUST be correct for ${language} (e.g. JavaScript throws TypeError/ReferenceError, Python throws exceptions, C may segfault, Java throws exceptions). Make each bug distinct and creative. Use spriteId exactly "${sprite}".`;
 
   try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=${apiKey}`;
     const gemResp = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
